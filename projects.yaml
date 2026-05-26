@@ -1,10 +1,6 @@
 projects:
-  - name: "kinobot.uz"
-    domain: "kinobot.uz"
-    workdir: "/home/bexruz/Documents/MyProjects/kinobot"
-    app: "main:app"
-
-  - name: "bexruz.uz"
-    domain: "bexruz.uz"
-    workdir: "/home/bexruz/Documents/MyProjects/portfolio"
-    app: "main:app"
+  - name: "projectsplatform_uz"
+    domain: "projectsplatform.uz"
+    workdir: "/home/ubuntu/py_deploy_manager/projects/projectsplatform_uz"
+    module: "main"
+    app: "app"
