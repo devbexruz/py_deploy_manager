@@ -96,7 +96,7 @@ def reload_all_projects_and_nginx():
                 frontend_location
             ).replace(
                 "{backend_prefix}",
-                backend_prefix
+                f"{backend_prefix}/" if backend_prefix else ""
             )
             domain_configs[domain] = rendered_template
             loaded_count += 1
