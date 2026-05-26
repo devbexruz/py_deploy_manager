@@ -49,6 +49,8 @@ def reload_all_projects_and_nginx():
         domain = proj.get("domain")
         workdir = proj.get("workdir", f"/home/ubuntu/py_deploy_manager/projects/{name}")
         module_name = proj.get("module", "main")
+        backend_prefix = proj.get("backend_prefix", "")
+        frontend_path = proj.get("frontend_path", "")
         app_var_name = proj.get("app", "app")
         
         if not domain:
@@ -80,8 +82,22 @@ def reload_all_projects_and_nginx():
             
             manager_app.mount(f"/{package_name}", sub_app)
             print(f"[+] Loaded Python App: {name} (URL prefix: /{package_name}) from {workdir}")
-            
-            rendered_template = nginx_template.replace("{name}", package_name).replace("{domain}", domain).replace("{workdir}", workdir)
+            if frontend_path:
+                frontend_location = f"location / {{ root {frontend_path}; index index.html; try_files $uri $uri/ /index.html; }}"
+            else:
+                frontend_location = ""
+            rendered_template = nginx_template.replace(
+                "{package_name}", package_name
+            ).replace(
+                "{domain}",
+                domain
+            ).replace(
+                "{frontend_location}",
+                frontend_location
+            ).replace(
+                "{backend_prefix}",
+                backend_prefix
+            )
             domain_configs[domain] = rendered_template
             loaded_count += 1
             
