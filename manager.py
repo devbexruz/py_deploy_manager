@@ -65,6 +65,11 @@ def reload_all_projects_and_nginx():
         seen_domains.add(domain)
         
         try:
+            # Bu MathVisualAI ning boshqa .env ni o'qib adashib qolishini to'xtatadi
+            env_path = os.path.join(workdir, '.env')
+            if os.path.exists(env_path):
+                load_dotenv(dotenv_path=env_path, override=True) # override=True muhim!
+                print(f"[*] {name} uchun {env_path} yuklandi.")
             # 1. workdir ni PYTHONPATH ga qo'shamiz (bu import qidiruvini osonlashtiradi)
             if workdir not in sys.path:
                 sys.path.insert(0, workdir)
