@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PROJECTS_YAML_PATH = os.getenv("PROJECTS_YAML_PATH", "projects.yaml")
-NGINX_CONF_PATH = os.getenv("NGINX_CONF_PATH", "/etc/nginx/sites-available/py_deploy_manager.conf")
-NGINX_SYMLINK = os.getenv("NGINX_SYMLINK", "/etc/nginx/sites-enabled/py_deploy_manager.conf")
+NGINX_SITES_AVAILABLE = os.getenv("NGINX_SITES_AVAILABLE", "/etc/nginx/sites-available")
+NGINX_SITES_ENABLED = os.getenv("NGINX_SITES_ENABLED", "/etc/nginx/sites-enabled")
 NGINX_TEMPLATE_PATH = os.getenv("NGINX_TEMPLATE_PATH", "nginx_template.conf")
 
 @asynccontextmanager
@@ -37,27 +37,38 @@ def reload_all_projects_and_nginx():
     with open(NGINX_TEMPLATE_PATH, "r") as template_file:
         nginx_template = template_file.read()
 
-    nginx_config_content = ""
+    domain_configs = {}
+    seen_domains = set()
     loaded_count = 0
 
     print("[*] Loyihalarni qayta yuklash boshlandi...")
     
     for proj in config.get("projects", []):
-        name = proj["name"]
-        domain = proj["domain"]
+        name = proj.get("name", "unnamed")
+        package_name = proj.get("package_name", name)
+        domain = proj.get("domain")
         workdir = proj.get("workdir", f"/home/ubuntu/py_deploy_manager/projects/{name}")
-        app_str = proj["app"]
+        module_name = proj.get("module", "main")
+        app_var_name = proj.get("app", "app")
+        
+        if not domain:
+            print(f"[!] {name} uchun domain ko'rsatilmagan. O'tkazib yuborildi.")
+            continue
+            
+        if domain in seen_domains:
+            print(f"[!] {domain} domeni bir necha marta ishlatilgan. {name} o'tkazib yuborildi.")
+            continue
+            
+        seen_domains.add(domain)
         
         try:
-            module_name, app_var_name = app_str.split(":")
-            
             if workdir not in sys.path:
                 sys.path.insert(0, workdir)
                 
             module_path = os.path.join(workdir, f"{module_name}.py")
             
             # KESH MUAMMOSINI YECHISH: Agar modul eski keshda bo'lsa, uni o'chiramiz
-            full_module_key = f"{name}_{module_name}"
+            full_module_key = f"{package_name}_{module_name}"
             if full_module_key in sys.modules:
                 del sys.modules[full_module_key]
             
@@ -67,46 +78,47 @@ def reload_all_projects_and_nginx():
             
             sub_app = getattr(module, app_var_name)
             
-            manager_app.mount(f"/{name}", sub_app)
-            print(f"[+] Loaded Python App: {name} (URL prefix: /{name}) from {workdir}")
+            manager_app.mount(f"/{package_name}", sub_app)
+            print(f"[+] Loaded Python App: {name} (URL prefix: /{package_name}) from {workdir}")
             
-            rendered_template = nginx_template.replace("{name}", name).replace("{domain}", domain).replace("{workdir}", workdir)
-            nginx_config_content += rendered_template + "\n"
+            rendered_template = nginx_template.replace("{name}", package_name).replace("{domain}", domain).replace("{workdir}", workdir)
+            domain_configs[domain] = rendered_template
             loaded_count += 1
             
         except Exception as e:
             print(f"[!] {name} yuklanishda xato berdi: {e}")
 
     if loaded_count > 0:
-        update_nginx(nginx_config_content)
+        update_nginx_multiple(domain_configs)
     else:
         print("[!] Hech bitta loyiha yuklanmadi. Nginx o'zgartirilmadi.")
 
-def update_nginx(config_content: str):
-    # Ataylab vaqtinchalik (temp) faylga yozamiz, Nginx buzilib qolmasligi uchun
-    temp_conf_path = f"{NGINX_CONF_PATH}.tmp"
+def update_nginx_multiple(domain_configs: dict):
     try:
-        with open(temp_conf_path, "w") as f:
-            f.write(config_content)
+        updated_any = False
+        for domain, config_content in domain_configs.items():
+            conf_path = os.path.join(NGINX_SITES_AVAILABLE, f"{domain}.conf")
+            symlink_path = os.path.join(NGINX_SITES_ENABLED, f"{domain}.conf")
+            temp_conf_path = f"{conf_path}.tmp"
             
-        # 1. Vaqtinchalik faylni tekshiramiz (Nginx -t faqat asosiy fayllarni ko'ra olgani uchun,
-        # avval yozib olib, xato bo'lsa darhol orqaga qaytarish xavfsizroq)
-        os.replace(temp_conf_path, NGINX_CONF_PATH)
-        
-        if not os.path.exists(NGINX_SYMLINK):
-            os.symlink(NGINX_CONF_PATH, NGINX_SYMLINK)
+            with open(temp_conf_path, "w") as f:
+                f.write(config_content)
+                
+            os.replace(temp_conf_path, conf_path)
             
-        # 2. Sintaksis tekshiruvi
-        result = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True)
-        if result.returncode != 0:
-            raise Exception(f"Nginx sintaksisida xato: {result.stderr}")
+            if not os.path.exists(symlink_path):
+                os.symlink(conf_path, symlink_path)
+            updated_any = True
             
-        # 3. Reload
-        subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=True)
-        print("[+] Nginx konfiguratsiyasi muvaffaqiyatli yangilandi va reload qilindi.")
-        
+        if updated_any:
+            # Sintaksis tekshiruvi
+            result = subprocess.run(["sudo", "nginx", "-t"], capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"Nginx sintaksisida xato: {result.stderr}")
+                
+            # Reload
+            subprocess.run(["sudo", "systemctl", "reload", "nginx"], check=True)
+            print("[+] Nginx konfiguratsiyalari muvaffaqiyatli yangilandi va reload qilindi.")
+            
     except Exception as e:
         print(f"[!] Nginx-ni yangilashda jiddiy xatolik: {e}")
-        # Xato bo'lsa, vaqtinchalik fayl qolib ketgan bo'lsa o'chiramiz
-        if os.path.exists(temp_conf_path):
-            os.remove(temp_conf_path)
