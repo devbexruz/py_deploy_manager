@@ -93,12 +93,21 @@ def reload_all_projects_and_nginx():
     else:
         print("[!] Hech bitta loyiha yuklanmadi. Nginx o'zgartirilmadi.")
 
+def check_config_file(path):
+    if not os.path.exists(path):
+        return True
+    print(f"[!] Configuration fayl allaqachon mavjud: {path}")
+    return False
+
+
 def update_nginx_multiple(domain_configs: dict):
     try:
         updated_any = False
         for domain, config_content in domain_configs.items():
             conf_path = os.path.join(NGINX_SITES_AVAILABLE, f"{domain}.conf")
             symlink_path = os.path.join(NGINX_SITES_ENABLED, f"{domain}.conf")
+            if not check_config_file(symlink_path):
+                continue
             temp_conf_path = f"{conf_path}.tmp"
             
             with open(temp_conf_path, "w") as f:
