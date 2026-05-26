@@ -70,35 +70,54 @@ def reload_all_projects_and_nginx():
                 
             module_path = os.path.join(workdir, f"{module_name}.py")
             
-            # KESH MUAMMOSINI YECHISH: Agar modul eski keshda bo'lsa, uni o'chiramiz
-            full_module_key = f"{package_name}_{module_name}"
+            # 1. VIRTUAL PACKAGE YARATISH: 
+            # Python loyiha papkasini rasmiy package deb o'ylashi va 
+            # relative (.) importlarni to'g'ri topishi uchun uni sys.modules ga qo'shamiz
+            if package_name not in sys.modules:
+                pkg_spec = importlib.machinery.ModuleSpec(package_name, None, is_package=True)
+                pkg_module = importlib.util.module_from_spec(pkg_spec)
+                pkg_module.__path__ = [workdir] # Package ichini aynan workdir ga bog'laymiz
+                pkg_module.__file__ = os.path.join(workdir, "__init__.py")
+                sys.modules[package_name] = pkg_module
+
+            # Modul nomini oddiy "main" emas, "package_name.main" qilib yuklaymiz
+            full_module_key = f"{package_name}.{module_name}"
+            
+            # KESH MUAMMOSINI YECHISH
             if full_module_key in sys.modules:
                 del sys.modules[full_module_key]
             
             spec = importlib.util.spec_from_file_location(full_module_key, module_path)
             module = importlib.util.module_from_spec(spec)
+            
+            # ENG MUHIM QADAM: Modul qaysi paketga tegishli ekanligini bildirish
+            module.__package__ = package_name
+            
+            # Modulni tizimga qo'shamiz va ishga tushiramiz
+            sys.modules[full_module_key] = module
             spec.loader.exec_module(module)
             
             sub_app = getattr(module, app_var_name)
             
             manager_app.mount(f"/{package_name}", sub_app)
             print(f"[+] Loaded Python App: {name} (URL prefix: /{package_name}) from {workdir}")
+            
+            # ... (frontend_location va Nginx shablonlarini to'ldirish qismi o'zgarishsiz qoladi)
             if frontend_path:
                 frontend_location = f"location / {{ root {frontend_path}; index index.html; try_files $uri $uri/ /index.html; }}"
             else:
                 frontend_location = ""
+                
             rendered_template = nginx_template.replace(
                 "{package_name}", package_name
             ).replace(
-                "{domain}",
-                domain
+                "{domain}", domain
             ).replace(
-                "{frontend_location}",
-                frontend_location
+                "{frontend_location}", frontend_location
             ).replace(
-                "{backend_prefix}",
-                f"{backend_prefix}/" if backend_prefix else ""
+                "{backend_prefix}", f"{backend_prefix}/" if backend_prefix else ""
             )
+            
             domain_configs[domain] = rendered_template
             loaded_count += 1
             
