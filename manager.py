@@ -127,12 +127,10 @@ def update_nginx_multiple(domain_configs: dict):
             temp_conf_path = f"{conf_path}.tmp"
             
             with open(temp_conf_path, "w") as f:
+                print("symlink_path:", symlink_path)
                 f.write(config_content)
-                
             os.replace(temp_conf_path, conf_path)
-            
-            if not os.path.exists(symlink_path):
-                os.symlink(conf_path, symlink_path)
+            os.symlink(conf_path, symlink_path)
             updated_any = True
             
         if updated_any:
