@@ -1,8 +1,10 @@
 projects:
   - name: "kinobot.uz"
-    module: "projects.kinobot.main"
-    app: "sub_app"
+    domain: "kinobot.uz"
+    workdir: "/home/bexruz/Documents/MyProjects/kinobot"
+    app: "main:app"
 
   - name: "bexruz.uz"
-    module: "projects.portfolio.main"
-    app: "app"
+    domain: "bexruz.uz"
+    workdir: "/home/bexruz/Documents/MyProjects/portfolio"
+    app: "main:app"
