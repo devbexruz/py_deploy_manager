@@ -1,0 +1,8 @@
+projects:
+  - name: "kinobot.uz"
+    module: "projects.kinobot.main"
+    app: "sub_app"
+
+  - name: "bexruz.uz"
+    module: "projects.portfolio.main"
+    app: "app"
