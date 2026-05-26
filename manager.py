@@ -48,7 +48,7 @@ def reload_all_projects_and_nginx():
         package_name = proj.get("package_name", name)
         domain = proj.get("domain")
         workdir = proj.get("workdir", f"/home/ubuntu/py_deploy_manager/projects/{name}")
-        module_name = proj.get("module", "main")
+        module_name = proj.get("module", "main").replace(".", "/")
         backend_prefix = proj.get("backend_prefix", "")
         frontend_path = proj.get("frontend_path", "")
         app_var_name = proj.get("app", "app")
