@@ -66,10 +66,12 @@ def reload_all_projects_and_nginx():
         
         try:
             # Bu MathVisualAI ning boshqa .env ni o'qib adashib qolishini to'xtatadi
-            env_path = os.path.join(workdir, '.env')
-            if os.path.exists(env_path):
-                load_dotenv(dotenv_path=env_path, override=True) # override=True muhim!
-                print(f"[*] {name} uchun {env_path} yuklandi.")
+            original_cwd = os.getcwd()
+            os.chdir(workdir) # Hamma narsa endi MathVisualAI papkasini "markaz" deb biladi
+            
+            # Endi load_dotenv faqat shu papkadagi .env ni o'qiydi
+            load_dotenv(override=True)
+            
             # 1. workdir ni PYTHONPATH ga qo'shamiz (bu import qidiruvini osonlashtiradi)
             if workdir not in sys.path:
                 sys.path.insert(0, workdir)
