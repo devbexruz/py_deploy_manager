@@ -44,6 +44,7 @@ def reload_all_projects_and_nginx():
     print("[*] Loyihalarni qayta yuklash boshlandi...")
     
     for proj in config.get("projects", []):
+        print(proj)
         name = proj.get("name", "unnamed")
         package_name = proj.get("package_name", name)
         domain = proj.get("domain")
