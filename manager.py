@@ -64,7 +64,7 @@ def reload_all_projects_and_nginx():
             
         seen_domains.add(domain)
         
-        try:
+        if True:
             # 1. Loyihani yuklashdan oldin papkani sys.path ga qo'shamiz
             # NooreStyle/app/... strukturasi uchun workdir (NooreStyle papkasi) 
             # sys.path ning boshida bo'lishi shart.
@@ -126,11 +126,11 @@ def reload_all_projects_and_nginx():
             loaded_count += 1
             print(f"[+] Muvaffaqiyatli yuklandi: {name}")
 
-        except Exception as e:
-            # Xato yuz berganda CWD ni qaytarishni unutmaslik kerak
-            if 'original_cwd' in locals():
-                os.chdir(original_cwd)
-            print(f"[!] {name} yuklanishda xato berdi: {e}")
+        # except Exception as e:
+        #     # Xato yuz berganda CWD ni qaytarishni unutmaslik kerak
+        #     if 'original_cwd' in locals():
+        #         os.chdir(original_cwd)
+        #     print(f"[!] {name} yuklanishda xato berdi: {e}")
         os.chdir(os.path.dirname(__file__))
         load_dotenv(override=True)
     if loaded_count > 0:
