@@ -79,14 +79,25 @@ def reload_all_projects_and_nginx():
             module_path = os.path.join(workdir, f"{module_name}.py")
             
             # 2. VIRTUAL PACKAGE YARATISH (Import xatolarini oldini olish uchun)
-            # Agar 'app' loyiha ichida bo'lsa, 'package_name' ni 'app' kabi importlar
-            # topa olishi uchun uni sys.modules ga "ildiz" sifatida qo'shamiz.
-            if package_name not in sys.modules:
-                pkg_spec = importlib.machinery.ModuleSpec(package_name, None, is_package=True)
-                pkg_module = importlib.util.module_from_spec(pkg_spec)
-                pkg_module.__path__ = [workdir]
-                pkg_module.__file__ = os.path.join(workdir, "__init__.py")
-                sys.modules[package_name] = pkg_module
+            # Daraxt kabi ichma-ich barcha papkalarni virtual package sifatida qo'shish
+            def create_virtual_packages(base_dir, current_pkg_name):
+                if current_pkg_name not in sys.modules:
+                    pkg_spec = importlib.machinery.ModuleSpec(current_pkg_name, None, is_package=True)
+                    pkg_module = importlib.util.module_from_spec(pkg_spec)
+                    pkg_module.__path__ = [base_dir]
+                    pkg_module.__file__ = os.path.join(base_dir, "__init__.py")
+                    sys.modules[current_pkg_name] = pkg_module
+                
+                try:
+                    for item in os.listdir(base_dir):
+                        item_path = os.path.join(base_dir, item)
+                        if os.path.isdir(item_path) and not item.startswith(".") and not item.startswith("__"):
+                            sub_pkg_name = f"{current_pkg_name}.{item}"
+                            create_virtual_packages(item_path, sub_pkg_name)
+                except Exception:
+                    pass
+
+            create_virtual_packages(workdir, package_name)
 
             # 3. MODULNI DYNAMIC YUKLASH
             full_module_key = f"{package_name}.{module_name}"
