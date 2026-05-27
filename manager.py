@@ -135,7 +135,8 @@ def reload_all_projects_and_nginx():
             
         except Exception as e:
             print(f"[!] {name} yuklanishda xato berdi: {e}")
-
+        os.chdir(__file__)
+        load_dotenv(override=True)
     if loaded_count > 0:
         update_nginx_multiple(domain_configs)
     else:
