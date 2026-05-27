@@ -78,7 +78,19 @@ def reload_all_projects_and_nginx():
             
             module_path = os.path.join(workdir, f"{module_name}.py")
             
-            # 2. VIRTUAL PACKAGE YARATISH (Import xatolarini oldini olish uchun)
+            # 2. KESHNI TOZALASH
+            # Boshqa loyihalar ham 'app' kabi umumiy top-level nomdan foydalangan bo'lsa,
+            # eski loyiha keshini tozalaymiz. Shunda xato chiqmaydi (ModuleNotFoundError: No module named 'app.api')
+            top_level_module = module_name.split("/")[0] if "/" in module_name else module_name.split(".")[0]
+            keys_to_delete = [
+                k for k in sys.modules 
+                if k == top_level_module or k.startswith(f"{top_level_module}.") or 
+                   k == package_name or k.startswith(f"{package_name}.")
+            ]
+            for k in keys_to_delete:
+                del sys.modules[k]
+
+            # 3. VIRTUAL PACKAGE YARATISH
             # Daraxt kabi ichma-ich barcha papkalarni virtual package sifatida qo'shish
             def create_virtual_packages(base_dir, current_pkg_name):
                 if current_pkg_name not in sys.modules:
@@ -97,14 +109,14 @@ def reload_all_projects_and_nginx():
                 except Exception:
                     pass
 
-            create_virtual_packages(workdir, package_name)
+            # Agar package_name loyihaning top-level papkasi (masalan 'app') bilan bir xil bo'lsa,
+            # virtual package yaratmaymiz, chunki bu 'sys.path' orqali native importni buzadi!
+            if package_name != top_level_module:
+                create_virtual_packages(workdir, package_name)
 
-            # 3. MODULNI DYNAMIC YUKLASH
-            full_module_key = f"{package_name}.{module_name}"
-            
-            # Eski keshlangan modul bo'lsa, tozalaymiz
-            if full_module_key in sys.modules:
-                del sys.modules[full_module_key]
+            # 4. MODULNI DYNAMIC YUKLASH
+            mod_dotted = module_name.replace("/", ".")
+            full_module_key = f"{package_name}.{mod_dotted}"
             
             spec = importlib.util.spec_from_file_location(full_module_key, module_path)
             module = importlib.util.module_from_spec(spec)
