@@ -71,52 +71,46 @@ def reload_all_projects_and_nginx():
             
             # Endi load_dotenv faqat shu papkadagi .env ni o'qiydi
             load_dotenv(override=True)
-
-            # 1. workdir ni PYTHONPATH ga qo'shamiz (bu import qidiruvini osonlashtiradi)
             if workdir not in sys.path:
                 sys.path.insert(0, workdir)
                 
             module_path = os.path.join(workdir, f"{module_name}.py")
             
-            # 2. Modul nomini paket bilan emas, to'g'ridan-to'g'ri fayl sifatida yuklaymiz
-            # Shunda Python uni "mustaqil modul" deb emas, "package ichidagi modul" deb tushunadi
-            full_module_key = f"{package_name}_{module_name}" 
+            # 1. VIRTUAL PACKAGE YARATISH: 
+            # Python loyiha papkasini rasmiy package deb o'ylashi va 
+            # relative (.) importlarni to'g'ri topishi uchun uni sys.modules ga qo'shamiz
+            if package_name not in sys.modules:
+                pkg_spec = importlib.machinery.ModuleSpec(package_name, None, is_package=True)
+                pkg_module = importlib.util.module_from_spec(pkg_spec)
+                pkg_module.__path__ = [workdir] # Package ichini aynan workdir ga bog'laymiz
+                pkg_module.__file__ = os.path.join(workdir, "__init__.py")
+                sys.modules[package_name] = pkg_module
+
+            # Modul nomini oddiy "main" emas, "package_name.main" qilib yuklaymiz
+            full_module_key = f"{package_name}.{module_name}"
             
+            # KESH MUAMMOSINI YECHISH
             if full_module_key in sys.modules:
                 del sys.modules[full_module_key]
             
-            # Fayl lokatsiyasidan spec yaratamiz
             spec = importlib.util.spec_from_file_location(full_module_key, module_path)
-            if spec is None:
-                raise ImportError(f"Could not load spec for {module_path}")
-                
             module = importlib.util.module_from_spec(spec)
             
-            # 3. MUHIM: Bu modul o'z papkasini (workdir) paket deb bilishi uchun
-            # uni paket sifatida belgilab qo'yamiz
-            module.__package__ = None # Auto-detection ga ruxsat beramiz
+            # ENG MUHIM QADAM: Modul qaysi paketga tegishli ekanligini bildirish
+            module.__package__ = package_name
             
+            # Modulni tizimga qo'shamiz va ishga tushiramiz
             sys.modules[full_module_key] = module
             spec.loader.exec_module(module)
             
             sub_app = getattr(module, app_var_name)
             
             manager_app.mount(f"/{package_name}", sub_app)
-            print(f"[+] Loaded Python App: {name} (URL prefix: /{package_name})")
+            print(f"[+] Loaded Python App: {name} (URL prefix: /{package_name}) from {workdir}")
             
             # ... (frontend_location va Nginx shablonlarini to'ldirish qismi o'zgarishsiz qoladi)
             if frontend_path:
-                frontend_location = f"""    location / {{
-        root {frontend_path};
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }}
-    location /assets/ {{
-        root /var/www/iqromin.uz/dist;
-        expires 30d;           # Brauzerda 30 kun saqlansin (keshlash)
-        add_header Cache-Control "public, no-transform";
-        access_log off;        # Log yozishni o'chirib qo'yish (tezlik uchun)
-    }}"""
+                frontend_location = f"location / {{ root {frontend_path}; index index.html; try_files $uri $uri/ /index.html; }}"
             else:
                 frontend_location = ""
                 
