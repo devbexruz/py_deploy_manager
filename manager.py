@@ -71,7 +71,7 @@ def reload_all_projects_and_nginx():
             
             # Endi load_dotenv faqat shu papkadagi .env ni o'qiydi
             load_dotenv(override=True)
-            
+
             # 1. workdir ni PYTHONPATH ga qo'shamiz (bu import qidiruvini osonlashtiradi)
             if workdir not in sys.path:
                 sys.path.insert(0, workdir)
@@ -106,7 +106,17 @@ def reload_all_projects_and_nginx():
             
             # ... (frontend_location va Nginx shablonlarini to'ldirish qismi o'zgarishsiz qoladi)
             if frontend_path:
-                frontend_location = f"location / {{ root {frontend_path}; index index.html; try_files $uri $uri/ /index.html; }}"
+                frontend_location = f"""    location / {{
+        root {frontend_path};
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }}
+    location /assets/ {{
+        root /var/www/iqromin.uz/dist;
+        expires 30d;           # Brauzerda 30 kun saqlansin (keshlash)
+        add_header Cache-Control "public, no-transform";
+        access_log off;        # Log yozishni o'chirib qo'yish (tezlik uchun)
+    }}"""
             else:
                 frontend_location = ""
                 
