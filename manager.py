@@ -65,69 +65,71 @@ def reload_all_projects_and_nginx():
         seen_domains.add(domain)
         
         try:
-            # Bu MathVisualAI ning boshqa .env ni o'qib adashib qolishini to'xtatadi
-            original_cwd = os.getcwd()
-            os.chdir(workdir) # Hamma narsa endi MathVisualAI papkasini "markaz" deb biladi
-            
-            # Endi load_dotenv faqat shu papkadagi .env ni o'qiydi
-            load_dotenv(override=True)
+            # 1. Loyihani yuklashdan oldin papkani sys.path ga qo'shamiz
+            # NooreStyle/app/... strukturasi uchun workdir (NooreStyle papkasi) 
+            # sys.path ning boshida bo'lishi shart.
             if workdir not in sys.path:
                 sys.path.insert(0, workdir)
-                
+            
+            # .env ni to'g'ri joydan o'qish uchun ishchi papkani o'zgartiramiz
+            original_cwd = os.getcwd()
+            os.chdir(workdir)
+            load_dotenv(override=True)
+            
             module_path = os.path.join(workdir, f"{module_name}.py")
             
-            # 1. VIRTUAL PACKAGE YARATISH: 
-            # Python loyiha papkasini rasmiy package deb o'ylashi va 
-            # relative (.) importlarni to'g'ri topishi uchun uni sys.modules ga qo'shamiz
+            # 2. VIRTUAL PACKAGE YARATISH (Import xatolarini oldini olish uchun)
+            # Agar 'app' loyiha ichida bo'lsa, 'package_name' ni 'app' kabi importlar
+            # topa olishi uchun uni sys.modules ga "ildiz" sifatida qo'shamiz.
             if package_name not in sys.modules:
                 pkg_spec = importlib.machinery.ModuleSpec(package_name, None, is_package=True)
                 pkg_module = importlib.util.module_from_spec(pkg_spec)
-                pkg_module.__path__ = [workdir] # Package ichini aynan workdir ga bog'laymiz
+                pkg_module.__path__ = [workdir]
                 pkg_module.__file__ = os.path.join(workdir, "__init__.py")
                 sys.modules[package_name] = pkg_module
 
-            # Modul nomini oddiy "main" emas, "package_name.main" qilib yuklaymiz
+            # 3. MODULNI DYNAMIC YUKLASH
             full_module_key = f"{package_name}.{module_name}"
             
-            # KESH MUAMMOSINI YECHISH
+            # Eski keshlangan modul bo'lsa, tozalaymiz
             if full_module_key in sys.modules:
                 del sys.modules[full_module_key]
             
             spec = importlib.util.spec_from_file_location(full_module_key, module_path)
             module = importlib.util.module_from_spec(spec)
             
-            # ENG MUHIM QADAM: Modul qaysi paketga tegishli ekanligini bildirish
+            # Modulning paketga bog'liqligini aniq ko'rsatamiz
             module.__package__ = package_name
-            
-            # Modulni tizimga qo'shamiz va ishga tushiramiz
             sys.modules[full_module_key] = module
+            
+            # 4. EXECUTING (Bu bosqichda 'from app.core import...' ishlaydi)
             spec.loader.exec_module(module)
             
             sub_app = getattr(module, app_var_name)
-            
             manager_app.mount(f"/{package_name}", sub_app)
-            print(f"[+] Loaded Python App: {name} (URL prefix: /{package_name}) from {workdir}")
             
-            # ... (frontend_location va Nginx shablonlarini to'ldirish qismi o'zgarishsiz qoladi)
+            # Ishchi papkani qaytarish
+            os.chdir(original_cwd)
+            
+            # Nginx konfiguratsiyasini tayyorlash
             if frontend_path:
                 frontend_location = f"location / {{ root {frontend_path}; index index.html; try_files $uri $uri/ /index.html; }}"
             else:
                 frontend_location = ""
                 
-            rendered_template = nginx_template.replace(
-                "{package_name}", package_name
-            ).replace(
-                "{domain}", domain
-            ).replace(
-                "{frontend_location}", frontend_location
-            ).replace(
-                "{backend_prefix}", f"{backend_prefix}/" if backend_prefix else ""
-            )
+            rendered_template = nginx_template.replace("{package_name}", package_name) \
+                .replace("{domain}", domain) \
+                .replace("{frontend_location}", frontend_location) \
+                .replace("{backend_prefix}", f"{backend_prefix}/" if backend_prefix else "")
             
             domain_configs[domain] = rendered_template
             loaded_count += 1
-            
+            print(f"[+] Muvaffaqiyatli yuklandi: {name}")
+
         except Exception as e:
+            # Xato yuz berganda CWD ni qaytarishni unutmaslik kerak
+            if 'original_cwd' in locals():
+                os.chdir(original_cwd)
             print(f"[!] {name} yuklanishda xato berdi: {e}")
         os.chdir(os.path.dirname(__file__))
         load_dotenv(override=True)
